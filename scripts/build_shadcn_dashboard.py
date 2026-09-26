@@ -262,10 +262,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Liquidity</span>
           <i data-lucide="landmark" class="w-4 h-4 text-sky-600"></i>
         </div>
-        <div id="kpi-tot-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">$0.00M</div>
+        <div id="kpi-tot-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">##INIT_TOT_LIQ##</div>
         <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
           <span>Liquidity Cushion</span>
-          <span id="kpi-cushion-val" class="font-semibold text-emerald-600 num-tabular">$0.00M</span>
+          <span id="kpi-cushion-val" class="font-semibold text-emerald-600 num-tabular">##INIT_CUSHION##</span>
         </div>
       </div>
 
@@ -275,7 +275,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Corporate Cash</span>
           <i data-lucide="wallet" class="w-4 h-4 text-teal-600"></i>
         </div>
-        <div id="kpi-cash-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">$0.00M</div>
+        <div id="kpi-cash-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">##INIT_CORP_CASH##</div>
         <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
           <span>Status</span>
           <span class="font-semibold text-teal-600">Unrestricted Operating</span>
@@ -288,10 +288,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Days Float (DFO)</span>
           <i data-lucide="gauge" class="w-4 h-4 text-amber-600"></i>
         </div>
-        <div id="kpi-dfo-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">0.00 Days</div>
+        <div id="kpi-dfo-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">##INIT_DFO##</div>
         <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
           <span>Net Settlement Float</span>
-          <span id="kpi-float-val" class="font-semibold text-slate-700 num-tabular">$0.00M</span>
+          <span id="kpi-float-val" class="font-semibold text-slate-700 num-tabular">##INIT_FLOAT##</span>
         </div>
       </div>
 
@@ -301,11 +301,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Basel III LCR</span>
           <i data-lucide="award" class="w-4 h-4 text-indigo-600"></i>
         </div>
-        <div id="kpi-lcr-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">0.00%</div>
+        <div id="kpi-lcr-val" class="text-2xl font-bold num-tabular tracking-tight text-slate-900">##INIT_LCR##</div>
         <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
           <span>Compliance</span>
-          <span id="kpi-lcr-status" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            COMPLIANT
+          <span id="kpi-lcr-status" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            ##INIT_LCR_STATUS##
           </span>
         </div>
       </div>
@@ -314,7 +314,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <!-- DYNAMIC EXPLANATORY NOTE CALLOUT (Tab-Specific Clear Insights) -->
     <div id="tab-note-callout" class="p-4 rounded-xl bg-sky-50/70 border border-sky-200 text-sky-950 space-y-2 text-xs leading-relaxed">
-      <!-- Populated dynamically via JS -->
+      <div class="flex items-start gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-sky-600 shrink-0 mt-0.5"></i>
+        <div>
+          <p class="font-bold text-sky-900 mb-1">Understanding Liquidity Runway & Covenant Benchmarks:</p>
+          <ul class="list-disc pl-4 space-y-1 text-slate-700">
+            <li><strong>Total Available Liquidity</strong>: Corporate Operating Cash + Undrawn Revolver Capacity ($500.00M facility limit).</li>
+            <li><strong>Liquidity Cushion</strong>: Safety margin remaining after subtracting the mandatory $250.00M covenant floor.</li>
+            <li><strong>Corporate Operating Cash</strong>: Unrestricted operational reserves strictly segregated from protected client settlement balances.</li>
+            <li><strong>Basel III LCR</strong>: High-Quality Liquid Assets divided by 30-day net stressed cash outflows (&ge; 100% is statutory compliant).</li>
+          </ul>
+        </div>
+      </div>
     </div>
 
     <!-- PRIMARY VISUALIZATION CONTAINER -->
@@ -343,7 +354,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     <!-- SECONDARY DETAIL SECTION (Dynamic by Tab) -->
     <div id="secondary-content" class="space-y-6">
-      <!-- Injected dynamically based on active tab -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 card-shadow space-y-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Policy Runway</span>
+          <div class="text-xl font-bold num-tabular text-slate-900">##INIT_RUNWAY##</div>
+          <p class="text-xs text-slate-500">Total Liquidity / Trailing Daily Payout</p>
+        </div>
+        <div class="bg-white rounded-xl p-5 border border-slate-200 card-shadow space-y-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Credit Facility Benchmark</span>
+          <div class="text-xl font-bold num-tabular text-slate-900">$500.00M Cap</div>
+          <p class="text-xs text-slate-500">Committed Revolving Credit Facility</p>
+        </div>
+        <div class="bg-white rounded-xl p-5 border border-slate-200 card-shadow space-y-1">
+          <span class="text-xs font-semibold text-slate-400 uppercase">Covenant Threshold</span>
+          <div class="text-xl font-bold num-tabular text-slate-900">$250.00M Floor</div>
+          <p class="text-xs text-slate-500">Minimum Corporate Liquidity Requirement</p>
+        </div>
+      </div>
     </div>
 
     <!-- ======================================================================= -->
@@ -508,6 +535,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- METHODOLOGY & SEC 10-K PROVENANCE DISCLOSURE -->
+    <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-5 space-y-2 text-xs text-slate-600">
+      <div class="flex items-center gap-2 font-bold text-slate-800">
+        <i data-lucide="info" class="w-4 h-4 text-sky-600 shrink-0"></i>
+        <span>Financial Modeling Methodology & SEC Form 10-K Provenance Disclosure</span>
+      </div>
+      <p class="leading-relaxed">
+        <strong>Macro Calibration Anchors:</strong> System parameters are calibrated against Block, Inc.’s (NYSE: SQ) public SEC Form 10-K filings, including ~$220B–$240B annualized Gross Payment Volume (GPV), ~6-rail clearing mix distribution, ASC 606 gross vs net principal revenue recognition, CRR Art 336 / PSD2 Art 10 regulatory safeguarding segregation, and standard $500M revolving credit facility / $250M covenant floor benchmarks.
+      </p>
+      <p class="leading-relaxed">
+        <strong>Simulation Outputs vs SEC Filings:</strong> Specific operational numbers presented across this dashboard—including the <strong>$586.89M</strong> post-holiday settlement cash injection spike, <strong>$164.4M</strong> average trapped float receivables, and <strong>$10.7M–$13.1M</strong> annualized interest savings—are <em>deterministic simulation outputs generated by our 7-step recursive cash waterfall engine</em> across a 150-day banking horizon, rather than historical point-in-time accounting balances directly excerpted from SEC filing tables (which report quarterly aggregate snapshots rather than daily liquidity waterfalls).
+      </p>
     </div>
 
   </main>
@@ -1290,7 +1331,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
-    window.addEventListener('DOMContentLoaded', init);
+    function runInit() {
+      populateWeekSelect();
+      updateDashboard();
+      if (window.lucide && window.lucide.createIcons) {
+        lucide.createIcons();
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', runInit);
+    } else {
+      runInit();
+    }
   </script>
 </body>
 </html>
@@ -1301,9 +1354,31 @@ def build_shadcn_dashboard():
     print("[1/3] Collecting simulation datasets across all macro scenarios...")
     dataset = collect_simulation_data()
 
-    print("[2/3] Embedding data into executive dashboard template...")
+    print("[2/3] Embedding data into executive dashboard template with SSR pre-population...")
     json_str = json.dumps(dataset)
-    html_content = HTML_TEMPLATE.replace("##DATA_PAYLOAD##", json_str)
+
+    base = dataset["BASELINE"]
+    t1 = base["tab1"]
+    t3 = base["tab3"]
+
+    def _fmt(v):
+        return f"${v/1e6:,.2f}M"
+
+    replacements = {
+        "##DATA_PAYLOAD##": json_str,
+        "##INIT_TOT_LIQ##": _fmt(t1["total_liquidity"]),
+        "##INIT_CUSHION##": _fmt(t1["cushion"]),
+        "##INIT_CORP_CASH##": _fmt(t1["corporate_closing_cash"]),
+        "##INIT_DFO##": f"{t3['dfo']:.2f} Days",
+        "##INIT_FLOAT##": _fmt(t3["net_float"]),
+        "##INIT_LCR##": f"{t1['lcr_ratio']*100:.2f}%",
+        "##INIT_LCR_STATUS##": t1["lcr_status"],
+        "##INIT_RUNWAY##": f"{t1['runway_days']:.2f} Days",
+    }
+
+    html_content = HTML_TEMPLATE
+    for k, v in replacements.items():
+        html_content = html_content.replace(k, str(v))
 
     # Output to dashboard.html, index.html (root for Vercel), and dashboard/index.html
     root_dash = Path(__file__).resolve().parents[1] / "dashboard.html"
