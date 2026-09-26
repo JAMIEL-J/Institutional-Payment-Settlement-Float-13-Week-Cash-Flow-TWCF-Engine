@@ -1,0 +1,16 @@
+/* Apple Design System tokens for Web */
+:root {
+  --apple-canvas: #f5f5f7;
+  --apple-card: #ffffff;
+  --apple-text: #1d1d1f;
+  --apple-subtext: #86868b;
+  --apple-blue: #0071e3;
+  --apple-spring: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  background-color: var(--apple-canvas);
+  color: var(--apple-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

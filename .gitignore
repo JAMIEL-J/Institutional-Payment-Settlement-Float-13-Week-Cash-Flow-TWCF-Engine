@@ -1,0 +1,61 @@
+# ==============================================================================
+# Internal Development, Context & Specification Artifacts (Ignored)
+# ==============================================================================
+prd.md
+LLM_CONTEXT.md
+reports/
+scratch/
+*.jpg
+*.jpeg
+*.png
+
+# ==============================================================================
+# Python & Bytecode Cache
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution & Build
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing & Pytest Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE, Editor & OS Artifacts
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.tmp
