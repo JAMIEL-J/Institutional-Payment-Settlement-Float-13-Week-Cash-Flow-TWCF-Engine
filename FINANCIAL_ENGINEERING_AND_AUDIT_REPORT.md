@@ -159,25 +159,47 @@ $$\text{CECL Provision}_t = \sum_{k \in \text{MCC}} \text{Receivables}_{k,t} \ti
 
 #### 2.1 Dual-Ledger Cash Waterfall Mechanics
 The daily cash waterfall executes across two distinct ledgers:
-1. **Client Safeguarding Ledger**: Ensures client asset obligations are fully satisfied.
-2. **Corporate Operating Ledger**: Manages business operations, debt facilities, and covenant compliance.
+1. **Client Safeguarding Ledger**: Ensures client asset obligations are fully segregated and satisfied under statutory safeguarding regulations (FCA PS21/3, EBA Guidelines).
+2. **Corporate Operating Ledger**: Manages business operations, debt facilities, corporate take-rate sweeps, and covenant compliance.
+
+##### Step 0: 7-Day Pipeline Burn-In & Steady-State Settlement Initialization
+In continuous merchant acquiring, an empty pipeline on Day 1 creates an artificial cold-start boundary distortion: $T+1$ to $T+3$ inbound card receivables have not matured, while Day 1 and Day 2 merchant payouts fall due immediately. In production, clearing pipelines are mature and full.
+
+To reflect reality without boundary artifacts, the engine computes a **7-day clearing pipeline burn-in cycle** prior to official ledger accounting:
+
+$$\text{Burn-In Net Balance}_t = \sum_{\tau=1}^t \left(\text{Inbound Settlements}_\tau - \text{Merchant Payouts}_\tau\right), \quad t \in [1, \; 7]$$
+
+$$\text{Initial Safeguarded Pool Balance} = -\min\left(0, \; \min_{t \in [1, 7]} \text{Burn-In Net Balance}_t\right)$$
+
+This calibrates the opening safeguarded reserve so that in-flight receivables maturing on Days 1 and 2 absorb historical timing lags, ensuring steady-state operation without artificial cold-start deficits.
 
 ##### Step 1: Client Net Position & Corporate Safeguarding Injection
-On calendar day $t$, the client settlement deficit is calculated:
+On calendar day $t$, cleared inbound settlements augment the safeguarding balance:
 
-$$\text{Net Deficit}_t = \max\left(0, \; \text{Payouts Due}_t - \text{Cleared Inbound Cash}_t\right)$$
+$$\text{Safeguarded Funds Available}_t = \text{Safeguarded Opening Cash}_t + \text{Cleared Inbound Cash}_t$$
 
-Under statutory safeguarding, corporate cash must cover this deficit:
+If scheduled merchant payout obligations exceed available safeguarded funds, statutory safeguarding rules mandate an immediate subordination injection from corporate cash:
 
-$$\text{Corporate Injection}_t = \text{Net Deficit}_t$$
+$$\text{Corporate Injection}_t = \max\left(0, \; \text{Payouts Due}_t - \text{Safeguarded Funds Available}_t\right)$$
+
+$$\text{Post-Payout Safeguarded Cash}_t = \text{Safeguarded Funds Available}_t + \text{Corporate Injection}_t - \text{Payouts Due}_t$$
+
+##### Step 1b: Daily Earned Revenue Sweep (Fee Desegregation)
+Inbound gross settlements collected from acquiring banks include both merchant proceeds and the platform's processing take-rate fees. Once all merchant payouts for day $t$ are guaranteed and disbursed, the earned processor revenue belongs to corporate operations. 
+
+To prevent corporate operating capital from becoming trapped inside client trust accounts, the engine sweeps earned fees daily into the corporate ledger:
+
+$$\text{Revenue Swept}_t = \min\left(\text{Post-Payout Safeguarded Cash}_t, \; \text{Earned Processor Revenue}_t\right)$$
+
+$$\text{Safeguarded Closing Cash}_t = \text{Post-Payout Safeguarded Cash}_t - \text{Revenue Swept}_t$$
 
 ##### Step 2: Pre-Financing Corporate Cash
-Corporate operating cash before facility financing ($C_{\text{pre},t}$) is:
+Corporate operating cash before revolving credit facility financing ($C_{\text{pre},t}$) reflects opening reserves augmented by swept processor fees and diminished by any emergency safeguarding injections:
 
-$$C_{\text{pre},t} = C_{\text{closing},t-1} + \text{Corporate Operating Inflows}_t - \text{Corporate OpEx}_t - \text{Corporate Injection}_t$$
+$$C_{\text{pre},t} = C_{\text{closing},t-1} + \text{Revenue Swept}_t - \text{Corporate Injection}_t$$
 
 ##### Step 3: Revolving Credit Facility Drawdown Logic
-The platform maintains a committed Revolving Credit Facility with capacity $C_{\text{max}} = \$500.00\text{M}$ and a contractual minimum corporate liquidity floor $C_{\text{floor}} = \$250.00\text{M}$.
+The platform maintains a committed Revolving Credit Facility with capacity $C_{\text{max}} = \$500.00\text{M}$ and a contractual minimum corporate liquidity covenant floor $C_{\text{floor}} = \$250.00\text{M}$.
 
 If pre-financing cash drops below the covenant floor, the engine executes an automatic draw:
 
@@ -187,17 +209,21 @@ $$\text{Actual Draw}_t = \min\left(\text{Draw Required}_t, \; C_{\text{max}} - D
 
 where $D_{t-1}$ is the outstanding debt balance from the prior day.
 
-##### Step 4: Surplus Cash Sweep Logic
+##### Step 4: Surplus Cash Sweep & Debt Amortization Logic
 If pre-financing corporate cash exceeds the operational sweep target ($L_{\text{target}} = \$300.00\text{M}$) and there is outstanding revolver debt, surplus funds are automatically swept to pay down debt:
 
 $$\text{Surplus Available}_t = \max\left(0, \; C_{\text{pre},t} - L_{\text{target}}\right)$$
 
 $$\text{Actual Sweep}_t = \min\left(\text{Surplus Available}_t, \; D_{t-1} + \text{Actual Draw}_t\right)$$
 
-##### Step 5: Closing Positions
+##### Step 5: Daily Closing Balances & Interest Accrual
+Revolver borrowings accrue interest daily using Actual/360 money market conventions ($r_{\text{eff}} = \text{SOFR} + \text{Spread}$):
+
 $$D_t = D_{t-1} + \text{Actual Draw}_t - \text{Actual Sweep}_t$$
 
-$$C_{\text{closing},t} = C_{\text{pre},t} + \text{Actual Draw}_t - \text{Actual Sweep}_t$$
+$$\text{Daily Interest}_t = D_t \times r_{\text{eff}} \times \frac{1}{360}$$
+
+$$C_{\text{closing},t} = C_{\text{pre},t} + \text{Actual Draw}_t - \text{Actual Sweep}_t - \text{Daily Interest}_t$$
 
 $$\text{Total Available Liquidity}_t = C_{\text{closing},t} + \left(C_{\text{max}} - D_t\right)$$
 
@@ -244,20 +270,29 @@ $$\text{Net Stressed Outflow}_t = \left(\text{Trailing 30D Average Net Subordina
 ---
 
 #### 2.5 13-Week Cash Flow (TWCF) Additive Variance Attribution
-In corporate treasury FP&A, variance between Actual Net Cash and Budget Net Cash is decomposed into four orthogonal, additive economic drivers:
+In corporate treasury FP&A, variance between Actual Net Cash Flow and Budget Net Cash Flow across each weekly cycle $w$ is decomposed into orthogonal, additive economic drivers:
 
-$$\Delta \text{Net Cash}_w = \text{Volume Variance}_w + \text{Mix Variance}_w + \text{Timing Friction}_w - \text{CECL Charge}_w + \epsilon_w$$
+$$\Delta \text{Net Cash}_w = \text{Actual Net Cash}_w - \text{Budget Net Cash}_w$$
 
-1. **Volume Variance ($V_{\text{vol}}$)**: Cash impact from gross transaction volume deviations:
-   $$V_{\text{vol}} = \left(\text{Actual GPV} - \text{Budget GPV}\right) \times \text{Budgeted Take Rate}$$
-2. **Card Mix Variance ($V_{\text{mix}}$)**: Cash impact from payment method composition shifts:
-   $$V_{\text{mix}} = \sum_{r \in \text{Rails}} \text{Actual GPV}_r \times \left(\text{Actual Fee Rate}_r - \text{Budget Fee Rate}_r\right)$$
-3. **Timing Friction Variance ($V_{\text{tim}}$)**: Liquidity shifts caused by bank holidays, weekend settlement clustering, and clearing lag:
-   $$V_{\text{tim}} = \left(\text{Budget DFO} - \text{Actual DFO}\right) \times \frac{\text{Actual GPV}}{7}$$
-4. **CECL Credit Drag ($V_{\text{cecl}}$)**: Credit loss provisions reflecting counterparty risk:
-   $$V_{\text{cecl}} = \text{Actual CECL Provision} - \text{Budgeted Provision}$$
-5. **Additive Verification Constraint**:
-   $$\epsilon_w = \left|\Delta \text{Net Cash} - \left(V_{\text{vol}} + V_{\text{mix}} + V_{\text{tim}} - V_{\text{cecl}}\right)\right| < \$0.01$$
+$$\Delta \text{Net Cash}_w = V_{\text{vol},w} + V_{\text{mix},w} + V_{\text{tim},w} + \epsilon_w$$
+
+##### 1. Waterfall Ledger Actuals vs. Budget Baseline
+* **Actual Inflows & Outflows**: Sourced directly from the executed daily waterfall ledger (`fpa_cash_waterfall_daily`):
+  $$\text{Actual Net Cash}_w = \sum_{t \in w} \left(\text{Safeguarded Inbound Settlements}_t - \text{Safeguarded Outbound Payouts}_t\right)$$
+* **Budget Net Benchmark**:
+  $$\text{Budget Net Cash}_w = \text{Budget GPV}_w \times \text{Budget Net Take Rate} \quad (\approx 2.20\%)$$
+
+##### 2. Decomposition Components
+1. **Volume Variance ($V_{\text{vol},w}$)**: Cash flow deviation attributable strictly to changes in aggregate Gross Processing Volume:
+   $$V_{\text{vol},w} = \left(\text{Actual GPV}_w - \text{Budget GPV}_w\right) \times \text{Budget Net Take Rate}$$
+2. **Card & Payment Rail Mix Variance ($V_{\text{mix},w}$)**: Cash impact from composition shifts across card rails (Credit, Debit, Amex, ACH, Wire) relative to budgeted channel shares:
+   $$V_{\text{mix},w} = \text{Actual GPV}_w \times \sum_{r \in \text{Rails}} \left(\frac{\text{Actual GPV}_{r,w}}{\text{Actual GPV}_w} - \text{Budget Share}_r\right) \times \text{Budget Take Rate}_r$$
+3. **Timing Friction Variance ($V_{\text{tim},w}$)**: Liquidity shifts caused by bank clearing holidays, calendar day-of-week settlement clustering, and scenario lag shifts:
+   $$V_{\text{tim},w} = \text{Actual Inbound Cash}_w - \text{Forecast Cleared Inbound Cash}_w$$
+   * In macro stress scenarios (Adverse / Severely Adverse), clearing lag shifts ($+24\text{h}$, $+48\text{h}$) are inferred directly via minimum absolute difference against historical clearing matrices, attributing the timing delay to $V_{\text{tim},w}$.
+4. **Closed Residual ($\epsilon_w$)**: Captures higher-order interaction effects (e.g. cross-term volume/rate elasticity and CECL reserve retention), strictly bounded:
+   $$\epsilon_w = \Delta \text{Net Cash}_w - \left(V_{\text{vol},w} + V_{\text{mix},w} + V_{\text{tim},w}\right)$$
+   $$\text{Additive Identity Verification}: \quad \sum_{w=1}^{13} \left(V_{\text{vol},w} + V_{\text{mix},w} + V_{\text{tim},w} + \epsilon_w\right) \equiv \sum_{w=1}^{13} \Delta \text{Net Cash}_w$$
 
 ---
 
