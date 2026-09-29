@@ -261,7 +261,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <h2 id="banner-title" class="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800">Covenant Status: Compliant</h2>
           <p id="banner-desc" class="text-xs text-emerald-700 mt-0.5 leading-snug">
-            Headroom stands at <strong>$739.34M</strong> (Minimum safety buffer: $50.00M above $250.00M covenant floor).
+            Headroom stands at <strong>##INIT_HEADROOM##</strong> (Minimum safety buffer: $50.00M above $250.00M covenant floor).
           </p>
         </div>
       </div>
@@ -1413,6 +1413,7 @@ def build_shadcn_dashboard():
         "##DATA_PAYLOAD##": json_str,
         "##INIT_TOT_LIQ##": _fmt(t1["total_liquidity"]),
         "##INIT_CUSHION##": _fmt(t1["cushion"]),
+        "##INIT_HEADROOM##": _fmt(t1["covenant_headroom"]),
         "##INIT_CORP_CASH##": _fmt(t1["corporate_closing_cash"]),
         "##INIT_DFO##": f"{t3['dfo']:.2f} Days",
         "##INIT_FLOAT##": _fmt(t3["net_float"]),
