@@ -48,6 +48,8 @@ ANCHOR_MERCHANTS = [
     ("m-t4-t2", "7995", "TIER_4", "TWO_DAY_T2"),
 ]
 
+DEFAULT_BURN_IN_DAYS = 7
+
 
 
 def seed_merchants(con):
@@ -74,7 +76,8 @@ def route_transaction(auth_date, contract, rail, banking_days):
 
 
 def generate_synthetic_transactions(con, scale_daily_gpv=None,
-                                    num_days=150, start=None):
+                                    num_days=150, start=None,
+                                    burn_in_days=DEFAULT_BURN_IN_DAYS):
     """Deterministic grain generation. Returns row count written."""
     import datetime as dt
     import pandas as pd
@@ -96,12 +99,15 @@ def generate_synthetic_transactions(con, scale_daily_gpv=None,
         "FROM dim_merchant").fetchall()}
     if start is None:
         start = CAL_START
-    noise = rng.normal(1.0, 0.03, num_days)
+    burn_in_days = max(0, int(burn_in_days))
+    gen_start = start - dt.timedelta(days=burn_in_days)
+    total_days = num_days + burn_in_days
+    noise = rng.normal(1.0, 0.03, total_days)
     rails = list(RAIL_SHARE)
     seq = 0
     rows = []
-    for day in range(num_days):
-        auth = start + dt.timedelta(days=day)
+    for day in range(total_days):
+        auth = gen_start + dt.timedelta(days=day)
         mult = WEEKEND_VOLUME_MULTIPLIER if auth.weekday() in (4, 5, 6) else 1.0
         daily_gpv = scale_daily_gpv * mult * float(noise[day])
         cells = [(m[0], r) for m in ANCHOR_MERCHANTS for r in rails]
