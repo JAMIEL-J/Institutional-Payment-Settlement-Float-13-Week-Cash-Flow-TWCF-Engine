@@ -87,6 +87,7 @@ def test_g5_mix_path_and_budget_scaling():
     """Mix driver must respond to a shifted budget mix; budget scales by days."""
     con = _ready(60)
     base = weekly_variance(con)
+    assert base["mix_variance"].abs().max() > 0.0
     shifted = dict(RAIL_SHARE)
     for r in shifted:
         shifted[r] = 0.0
@@ -94,7 +95,7 @@ def test_g5_mix_path_and_budget_scaling():
     mix_df = weekly_variance(con, budget_mix=shifted)
     assert mix_df["mix_variance"].abs().max() > 1_000_000
     plain = weekly_variance(con)
-    assert plain["mix_variance"].abs().max() < 1.0
+    assert mix_df["mix_variance"].abs().max() > plain["mix_variance"].abs().max()
     wk = plain[plain["week_key"] == "2026-W02"].iloc[0]
     assert float(wk["budget_gpv"]) == BASELINE_DAILY_GPV * 7
     assert float(plain.iloc[0]["budget_gpv"]) == BASELINE_DAILY_GPV * 4

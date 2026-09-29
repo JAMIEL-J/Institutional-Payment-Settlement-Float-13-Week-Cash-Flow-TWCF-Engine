@@ -2,6 +2,9 @@
 
 An institutional-grade treasury, regulatory liquidity, and cash waterfall projection engine calibrated to Block, Inc.'s high-volume payment processing platform ($220B–$240B annualized GPV).
 
+> **Data Calibration & Architecture Note:**  
+> This engine models multi-rail treasury clearing and regulatory liquidity using a **calibrated discrete-event simulation**. Macro boundaries—including an annualized GPV of ~$240B ($600M/day), corporate cash reserves, and a $500M revolving credit facility—are **benchmarked to Block, Inc. SEC Form 10-K disclosures**. Micro-level merchant distributions, rail routing (Card, ACH, FedNow/RTP), and interchange schedules are generated using stylized payment-network industry standards to model intraday liquidity float.
+
 > 📘 **Full Audit Whitepaper**: For a complete deep-dive into the data extraction logic, mathematical formulas, page-by-page Excel workbook audit, dashboard visual analytics, and scenario findings, see [**FINANCIAL_ENGINEERING_AND_AUDIT_REPORT.md**](FINANCIAL_ENGINEERING_AND_AUDIT_REPORT.md).
 
 ---

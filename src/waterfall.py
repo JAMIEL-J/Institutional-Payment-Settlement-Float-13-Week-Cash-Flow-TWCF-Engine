@@ -25,6 +25,9 @@ LAG_SHIFT_DAYS = {
 }
 
 
+BURN_IN_DAYS = 7
+
+
 def _lag(scenario):
     return LAG_SHIFT_DAYS[scenario]
 
@@ -94,23 +97,31 @@ def execute_daily_waterfall_engine(con, macro_scenario="BASELINE", start=None, e
     if end is None:
         end = start + _dt.timedelta(days=149)
     rows = daily_flows(con, start, end, lag_shift_days=_lag(macro_scenario))
+    def q2(x):
+        return _D(x).quantize(_D("0.01"), rounding=_H)
     corp = OPENING_CORP_CASH
     debt = _D("0.00")
-    saf = _D("0.00")
+    burn_bal = _D("0.00")
+    min_burn_bal = _D("0.00")
+    for _, inbound, _, payout, _, _ in rows[:BURN_IN_DAYS]:
+        burn_bal = burn_bal + q2(inbound) - q2(payout)
+        if burn_bal < min_burn_bal:
+            min_burn_bal = burn_bal
+    saf = -min_burn_bal
     allow = _D("0.00")
     window = []
     wf_rows, liq_rows = [], []
-    def q2(x):
-        return _D(x).quantize(_D("0.01"), rounding=_H)
     for ledger_date, inbound, scheme, payout, revenue, gpv in rows:
         in_d, sc_d, out_d, rev_d = q2(inbound), q2(scheme), q2(payout), q2(revenue)
         saf_open = saf
         saf = saf_open + in_d
         injection = max(_D("0.00"), out_d - saf)
         saf = saf + injection - out_d
-        fdelta = in_d - out_d - sc_d
+        revenue_sweep = min(saf, rev_d) if rev_d > 0 else _D("0.00")
+        saf = saf - revenue_sweep
+        fdelta = in_d - out_d - revenue_sweep
         corp_open = corp
-        pre = corp_open + rev_d - injection
+        pre = corp_open + revenue_sweep - injection
         draw = _D("0.00")
         repay = _D("0.00")
         if pre < MIN_CORP_LIQUIDITY_COVENANT:
@@ -126,7 +137,8 @@ def execute_daily_waterfall_engine(con, macro_scenario="BASELINE", start=None, e
         charge = (q2(gpv) * PD_LGD[macro_scenario]["pd"]
                   * PD_LGD[macro_scenario]["lgd"]).quantize(_D("0.01"), rounding=_H)
         allow = allow + charge
-        window.append(float(out_d))
+        stress_outflow = max(_D("0.00"), injection - revenue_sweep)
+        window.append(float(stress_outflow))
         avg30 = sum(window[-30:]) / min(len(window), 30)
         denom = _D(str(avg30)) * _D(30) * _D("0.30")
         if denom > 0:
@@ -138,7 +150,7 @@ def execute_daily_waterfall_engine(con, macro_scenario="BASELINE", start=None, e
             ratio = _D("999.0000")
             status = "COMPLIANT"
         wf_rows.append((ledger_date, float(saf_open), float(in_d), float(out_d),
-                        float(fdelta), float(injection), float(corp_open), float(rev_d),
+                        float(fdelta), float(injection), float(corp_open), float(revenue_sweep),
                         float(pre), float(draw), float(repay), float(debt),
                         float(interest), float(corp)))
         cushion = corp + (REVOLVER_CAPACITY - debt) - MIN_CORP_LIQUIDITY_COVENANT

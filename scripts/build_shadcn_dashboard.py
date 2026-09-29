@@ -247,6 +247,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <!-- ======================================================================= -->
   <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 flex-1 w-full">
 
+    <div class="rounded-xl border border-sky-200 bg-sky-50/70 p-3 sm:p-4 text-[11px] sm:text-xs text-slate-700 leading-relaxed">
+      <strong class="text-slate-900">Data Calibration &amp; Architecture Note:</strong>
+      This engine models multi-rail treasury clearing and regulatory liquidity using a calibrated discrete-event simulation. Macro boundaries—including an annualized GPV of ~$240B ($600M/day), corporate cash reserves, and a $500M revolving credit facility—are benchmarked to Block, Inc. SEC Form 10-K disclosures. Micro-level merchant distributions, rail routing (Card, ACH, FedNow/RTP), and interchange schedules are generated using stylized payment-network industry standards to model intraday liquidity float.
+    </div>
+
     <!-- COVENANT EARLY WARNING STATUS BANNER -->
     <div id="covenant-banner" class="p-3.5 sm:p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all bg-emerald-50/80 border-emerald-200 text-emerald-900">
       <div class="flex items-start sm:items-center gap-2.5 sm:gap-3">
