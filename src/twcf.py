@@ -24,6 +24,7 @@ from decimal import Decimal as _D, ROUND_HALF_UP as _H
 
 from .config import BASELINE_DAILY_GPV
 from .transactions import RAIL_SHARE, RAIL_TAKE, RAIL_COST
+from .routing import build_us_banking_set, inbound_date
 
 DDL_TWCF = """
 CREATE TABLE IF NOT EXISTS fpa_twcf_weekly_variance (
@@ -107,7 +108,25 @@ def weekly_variance(con, budget_daily_gpv=None, budget_mix=None,
         d = _dt.date.fromisoformat(ds)
         weeks.setdefault(week_key(d), []).append(d)
     if forecast_inbound is None:
-        forecast_inbound = {wk: sum(inbound_by_day.get(x.isoformat(), 0.0)
+        banking_days = build_us_banking_set(con)
+        auth_gpv_by_day = {
+            str(ds): float(v or 0.0)
+            for ds, v in con.execute(
+                "SELECT CAST(auth_date AS VARCHAR), SUM(gross_amount)"
+                " FROM fact_transactions GROUP BY 1"
+            ).fetchall()
+        }
+        budget_inbound_by_day = {}
+        for ds in days:
+            auth_d = _dt.date.fromisoformat(ds)
+            auth_gpv = auth_gpv_by_day.get(ds, 0.0)
+            for rail, share in budget_mix.items():
+                inbound_d = inbound_date(auth_d, rail, banking_days)
+                budget_inbound_by_day[inbound_d.isoformat()] = (
+                    budget_inbound_by_day.get(inbound_d.isoformat(), 0.0)
+                    + (auth_gpv * share)
+                )
+        forecast_inbound = {wk: sum(budget_inbound_by_day.get(x.isoformat(), 0.0)
                                     for x in ds) for wk, ds in weeks.items()}
     out_rows = []
     for wk in sorted(weeks):
@@ -125,7 +144,7 @@ def weekly_variance(con, budget_daily_gpv=None, budget_mix=None,
         bud_gpv = budget_daily_gpv * len(ds)
         bud_net = bud_gpv * budget_net_take
         volume = (act_gpv - bud_gpv) * budget_net_take
-        timing = act_in - forecast_inbound.get(wk, act_in)
+        timing = act_in - forecast_inbound.get(wk, 0.0)
         mix_rows = con.execute(
             "SELECT payment_rail, SUM(gross_amount) FROM fact_transactions"
             " WHERE merchant_payout_date BETWEEN ? AND ? GROUP BY 1",

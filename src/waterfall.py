@@ -18,6 +18,9 @@ PD_LGD = {
     "SEVERELY_ADVERSE": {"pd": Decimal("0.035"), "lgd": Decimal("0.85")},
 }
 
+BURN_IN_DAYS = 7
+MONTHLY_CORPORATE_OPEX = Decimal("50000000.00")
+
 LAG_SHIFT_DAYS = {
     "BASELINE": 0,
     "ADVERSE": 1,
@@ -93,21 +96,28 @@ def execute_daily_waterfall_engine(con, macro_scenario="BASELINE", start=None, e
         start = _S
     if end is None:
         end = start + _dt.timedelta(days=149)
-    rows = daily_flows(con, start, end, lag_shift_days=_lag(macro_scenario))
+    burn_in_start = start - _dt.timedelta(days=BURN_IN_DAYS)
+    rows = daily_flows(con, burn_in_start, end, lag_shift_days=_lag(macro_scenario))
     corp = OPENING_CORP_CASH
     debt = _D("0.00")
     saf = _D("0.00")
     allow = _D("0.00")
-    window = []
     wf_rows, liq_rows = [], []
     def q2(x):
-        return _D(x).quantize(_D("0.01"), rounding=_H)
-    for ledger_date, inbound, scheme, payout, revenue, gpv in rows:
+        return _D(str(x)).quantize(_D("0.01"), rounding=_H)
+    for ledger_date_str, inbound, scheme, payout, revenue, gpv in rows:
+        ledger_date = _dt.date.fromisoformat(str(ledger_date_str))
         in_d, sc_d, out_d, rev_d = q2(inbound), q2(scheme), q2(payout), q2(revenue)
         saf_open = saf
         saf = saf_open + in_d
         injection = max(_D("0.00"), out_d - saf)
         saf = saf + injection - out_d
+        earned_sweep = rev_d + sc_d
+        if saf >= earned_sweep:
+            saf = saf - earned_sweep
+        else:
+            earned_sweep = saf
+            saf = _D("0.00")
         fdelta = in_d - out_d - sc_d
         corp_open = corp
         pre = corp_open + rev_d - injection
@@ -123,27 +133,30 @@ def execute_daily_waterfall_engine(con, macro_scenario="BASELINE", start=None, e
             pre = pre - repay
         interest = (debt * rate / _D(360)).quantize(_D("0.01"), rounding=_H)
         corp = pre - interest
-        charge = (q2(gpv) * PD_LGD[macro_scenario]["pd"]
-                  * PD_LGD[macro_scenario]["lgd"]).quantize(_D("0.01"), rounding=_H)
-        allow = allow + charge
-        window.append(float(out_d))
-        avg30 = sum(window[-30:]) / min(len(window), 30)
-        denom = _D(str(avg30)) * _D(30) * _D("0.30")
-        if denom > 0:
-            ratio = (corp / denom).quantize(_D("0.0001"), rounding=_H)
-            if ratio > _D("999.9999"):
-                ratio = _D("999.9999")
-            status = "COMPLIANT" if ratio >= _D("1.05") else ("WARNING" if ratio >= _D("1.00") else "BREACH")
-        else:
-            ratio = _D("999.0000")
-            status = "COMPLIANT"
-        wf_rows.append((ledger_date, float(saf_open), float(in_d), float(out_d),
-                        float(fdelta), float(injection), float(corp_open), float(rev_d),
-                        float(pre), float(draw), float(repay), float(debt),
-                        float(interest), float(corp)))
-        cushion = corp + (REVOLVER_CAPACITY - debt) - MIN_CORP_LIQUIDITY_COVENANT
-        liq_rows.append((ledger_date, float(corp), float(denom), float(ratio),
-                         status, float(allow), float(cushion)))
+        if ledger_date >= start:
+            charge = (q2(gpv) * PD_LGD[macro_scenario]["pd"]
+                      * PD_LGD[macro_scenario]["lgd"]).quantize(_D("0.01"), rounding=_H)
+            allow = allow + charge
+            wf_rows.append((ledger_date, float(saf_open), float(in_d), float(out_d),
+                            float(fdelta), float(injection), float(corp_open), float(rev_d),
+                            float(pre), float(draw), float(repay), float(debt),
+                            float(interest), float(corp)))
+            historical_peak_injection = max([r[5] for r in wf_rows[-30:]] or [0.0])
+            monthly_debt_service = (debt * rate / _D(12)).quantize(_D("0.01"), rounding=_H)
+            denom = (_D(str(historical_peak_injection))
+                     + MONTHLY_CORPORATE_OPEX
+                     + monthly_debt_service)
+            if denom > 0:
+                ratio = (corp / denom).quantize(_D("0.0001"), rounding=_H)
+                if ratio > _D("999.9999"):
+                    ratio = _D("999.9999")
+                status = "COMPLIANT" if ratio >= _D("1.00") else "BREACH"
+            else:
+                ratio = _D("999.0000")
+                status = "COMPLIANT"
+            cushion = corp + (REVOLVER_CAPACITY - debt) - MIN_CORP_LIQUIDITY_COVENANT
+            liq_rows.append((ledger_date, float(corp), float(denom), float(ratio),
+                             status, float(allow), float(cushion)))
     cols = ["ledger_date", "safeguarded_opening_cash", "safeguarded_inbound_settlements",
             "safeguarded_outbound_payouts", "safeguarded_net_float_delta",
             "corporate_subordination_injection", "corporate_opening_cash",
