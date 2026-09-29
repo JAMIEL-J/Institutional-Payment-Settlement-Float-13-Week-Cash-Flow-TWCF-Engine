@@ -323,7 +323,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div id="kpi-lcr-val" class="text-lg sm:text-2xl font-bold num-tabular tracking-tight text-slate-900 truncate">##INIT_LCR##</div>
         <div class="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 pt-1 border-t border-slate-100">
           <span>LCR</span>
-          <span id="kpi-lcr-status" class="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+          <span id="kpi-lcr-status" class="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
             ##INIT_LCR_STATUS##
           </span>
         </div>

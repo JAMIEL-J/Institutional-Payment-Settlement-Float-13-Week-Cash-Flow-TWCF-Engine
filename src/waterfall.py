@@ -140,7 +140,8 @@ def execute_daily_waterfall_engine(con, macro_scenario="BASELINE", start=None, e
         stress_outflow = max(_D("0.00"), injection - revenue_sweep)
         window.append(float(stress_outflow))
         avg30 = sum(window[-30:]) / min(len(window), 30)
-        denom = _D(str(avg30)) * _D(30) * _D("0.30")
+        stress_drain = _D(str(avg30)) * _D(30) * _D("0.30")
+        denom = stress_drain + _D("150000000.00")
         if denom > 0:
             ratio = (corp / denom).quantize(_D("0.0001"), rounding=_H)
             if ratio > _D("999.9999"):
