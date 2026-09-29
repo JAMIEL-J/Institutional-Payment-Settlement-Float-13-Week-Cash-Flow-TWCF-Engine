@@ -773,11 +773,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="flex items-start gap-2">
             <i data-lucide="help-circle" class="w-4 h-4 text-sky-600 shrink-0 mt-0.5"></i>
             <div>
-              <p class="font-bold text-sky-900 mb-1">Why Active Debt Shows $500.00M & How Scenarios Differ:</p>
+              <p class="font-bold text-sky-900 mb-1">Credit Facility Dynamics & Scenario Sensitivity:</p>
               <ul class="list-disc pl-4 space-y-1 text-slate-700">
-                <li><strong>Day 2 Settlement Gap Shock</strong>: On Jan 2 (first banking day after New Year holiday), merchant settlement payouts ($618.67M) precede cleared T+2 inbound card receipts ($31.78M). Under statutory safeguarding, corporate cash injects $586.89M to cover the gap.</li>
-                <li><strong>Automatic Maximum Drawdown ($500.00M)</strong>: Pre-financing corporate cash plunges to -$281.03M, breaching the $250.00M covenant floor. The engine automatically draws the maximum facility capacity ($500.00M).</li>
-                <li><strong>Baseline vs Stress Persistence</strong>: In <em>Baseline</em>, card receipts arrive on Day 3+, allowing corporate cash to rise above the $300.00M sweep threshold and repaying debt to <strong>$0.00</strong>. In <em>Adverse (+24h)</em> and <em>Severely Adverse (+48h)</em>, persistent clearing lag keeps corporate cash below $300.00M, locking the revolver at <strong>$500.00M</strong> throughout the projection horizon.</li>
+                <li><strong>Steady-State Baseline Stability</strong>: With a 7-day clearing burn-in cycle, in-flight card receipts arrive on Day 2 in steady state, maintaining corporate cash well above the $250.00M covenant floor without triggering credit facility draws (<strong>$0.00 drawn</strong> under Baseline across all 150 days).</li>
+                <li><strong>Macro Stress Utilization</strong>: Under <em>Adverse (+24h lag)</em> and <em>Severely Adverse (+48h systemic freeze)</em>, extended settlement latency causes outbound merchant disbursements to temporarily outpace inbound card receipts, triggering facility utilization to safeguard corporate liquidity.</li>
                 <li><strong>Current Macro Rates</strong>: Base SOFR ${(p.sofr*100).toFixed(2)}% + Spread ${(p.spread*100).toFixed(2)}% = Effective Borrowing Rate <strong>${(p.rate*100).toFixed(2)}%</strong> (Actual/360).</li>
               </ul>
             </div>

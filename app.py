@@ -369,12 +369,11 @@ with tab2:
     )
     st.plotly_chart(fig2a, width="stretch")
 
-    # Clear Scenario Dynamics Note explaining why Debt is $500M (Escaped dollars to prevent KaTeX math collision!)
+    # Clear Scenario Dynamics Note explaining why Debt is $0 in Baseline vs Stress
     st.info("""
-    💡 **Understanding Facility Utilization & Why Scenarios Differ**:
-    * **Day 2 Initial Draw**: On Day 2, large merchant payouts (\\$618.67M) precede cleared T+2 card network settlements (\\$31.78M). Under statutory safeguarding, the treasury injects corporate cash to protect client funds, dropping cash below the **\\$250.00M** covenant floor and automatically drawing the **\\$500.00M** facility capacity.
-    * **Baseline Scenario**: Inbound card settlements arrive on Day 3+, allowing corporate cash to recover above the **\\$300.00M** sweep threshold and fully repaying the facility to **\\$0.00**.
-    * **Adverse (+24h) & Severely Adverse (+48h) Scenarios**: Acquirer clearing delays permanently shift cash receipts, keeping corporate operating cash below the \\$300.00M repayment threshold. Therefore, the revolver remains locked at its maximum **\\$500.00M** capacity to defend covenant liquidity.
+    💡 **Understanding Facility Utilization & Scenario Dynamics**:
+    * **Steady-State Baseline Stability**: With a 7-day clearing burn-in cycle, in-flight card receipts arrive on Day 2 in steady state, maintaining corporate cash above the **\\$250.00M** covenant floor without triggering credit facility draws (**\\$0.00 drawn** under Baseline).
+    * **Macro Stress Sensitivity**: Under **Adverse (+24h lag)** and **Severely Adverse (+48h systemic freeze)**, extended clearing latency causes merchant payouts to temporarily outpace inbound receipts, activating facility borrowing to protect covenant liquidity buffers.
     """)
 
     # Monthly Cost of Carry Waterfall in bps of Net Operating Margin
