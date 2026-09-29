@@ -20,6 +20,9 @@ Concurrently, commercial agreements and statutory client asset protection regula
 
 This repository implements a **production-grade Dual-Ledger Cash Waterfall and 13-Week Cash Flow (TWCF) FP&A Engine** covering a 150-day projection horizon across three macroeconomic credit scenarios (**Baseline**, **Adverse**, and **Severely Adverse**). 
 
+> **Data Calibration & Architecture Note:**  
+> This engine models multi-rail treasury clearing and regulatory liquidity using a **calibrated discrete-event simulation**. Macro boundaries—including an annualized GPV of ~$240B ($600M/day), corporate cash reserves, and a $500M revolving credit facility—are **benchmarked to Block, Inc. (NYSE: SQ) SEC Form 10-K disclosures**. Micro-level merchant distributions, rail routing (Card, ACH, FedNow/RTP), and interchange schedules are generated using stylized payment-network industry standards to model intraday liquidity float. Operational outputs (e.g. trapped float, surge injection values) are deterministic simulation outputs rather than line items excerpted directly from SEC filing tables.
+
 The platform features:
 * An in-memory analytics engine driven by **DuckDB** and **NumPy/Pandas**.
 * A **100% dynamic native-formula Excel financial model** ([`Institutional_Payment_Float_Financial_Model.xlsx`](Institutional_Payment_Float_Financial_Model.xlsx)).
@@ -225,17 +228,18 @@ $$\text{DFO}_t = \frac{\text{Gross Settlements Receivable Asset}_t}{\text{Annual
 ---
 
 #### 2.4 Basel III Liquidity Coverage Ratio (LCR)
-To mirror institutional bank-grade prudential liquidity standards:
+To mirror institutional bank-grade prudential liquidity standards adapted for payment institutions under Basel III / EBA guidelines:
 
 $$\text{LCR}_t = \frac{\text{High Quality Liquid Assets (HQLA)}_t}{\text{Total Net Stressed Cash Outflows over 30 Days}_t}$$
 
-$$\text{HQLA}_t = C_{\text{closing},t} + \left(C_{\text{max}} - D_t\right)$$
+$$\text{HQLA}_t = C_{\text{closing},t}$$
 
-$$\text{Net Stressed Outflow}_t = \text{Stressed Runoff Rate} \times \text{Average Daily Merchant Payout} \times 30$$
+$$\text{Net Stressed Outflow}_t = \left(\text{Trailing 30D Average Net Subordination Drain} \times 30 \times 0.30\right) + \text{Baseline Stressed Operational Outflow Floor ($150.00M)}$$
 
-* $\text{LCR} \ge 100\%$: Fully Compliant.
-* $90\% \le \text{LCR} < 100\%$: Early Warning Buffer.
-* $\text{LCR} < 90\%$: Technical Supervisory Default.
+* Merchant transaction balances are held in a segregated safeguarding account and are not an unhedged corporate liability. Stressed outflows therefore isolate **subordination liquidity drains** (unfunded merchant gaps) plus baseline corporate operational obligations and debt service.
+* $\text{LCR} \ge 105\%$: Fully Compliant.
+* $100\% \le \text{LCR} < 105\%$: Early Warning Buffer.
+* $\text{LCR} < 100\%$: Regulatory Breach.
 
 ---
 
@@ -437,6 +441,7 @@ The platform provides two executive visualization surfaces:
 
 #### 4.2 Tab 2: Revolver Facility Utilization & Carry Drag
 * **Primary Visual**: **Area Trajectory Chart** showing daily drawn revolver debt with soft ocean gradient fill (`rgba(2, 132, 199, 0.18)`), ocean blue trajectory line (`#0284c7`), and a horizontal dashed reference ceiling at the committed **$500.00M Facility Capacity**.
+* **Steady-State Baseline vs Stress Activation**: In Baseline steady state, active debt tracks flat at **$0.00M** along the baseline axis as clearing inflows cover daily outflows. Under Adverse (+24h) and Severely Adverse (+48h) scenarios, the trajectory dynamically expands upwards to depict credit facility utilization responding to settlement friction shocks.
 * **Elimination of Bar Crowding**: Replaced 150 crowded daily vertical bars with a continuous, smooth area trajectory.
 * **Secondary Visual**: Monthly Net Operating Margin Erosion bar chart showing revolver carrying cost in basis points (bps) of operating margin.
 
@@ -456,41 +461,37 @@ The platform provides two executive visualization surfaces:
 
 ### 5. Key FP&A Findings & Deep-Dive Scenario Audit
 
-#### 5.1 The $500.00M Facility Draw Dynamic
-A critical finding of the model is that **Active Revolver Debt reaches $500.00M on Day 2 across all scenarios**, but diverges fundamentally thereafter:
+#### 5.1 Credit Facility Dynamics Across Macro Scenarios
+Following the implementation of the **7-day clearing pipeline burn-in cycle**, the model reflects realistic steady-state working capital and stress sensitivity:
 
 ```
 Revolver Debt ($M)
-  500M ┌────────┐
-       │ Day 2  ├───────────────────────────────────► Adverse & Severe: Stays locked at $500M
-       │ Influx │                                      (Clearing lag prevents cash > $300M)
-       │ Draw   │\
-       │        │ \ Baseline Scenario:
-       │        │  \ Repays to $0 by Day 118
-    0M └────────┴───\───────────────────────────────► Baseline: Repaid to $0.00
-       Jan 1   Jan 2   Feb         Mar         Apr         May
+  500M ┌ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ┐ Facility Capacity ($500M)
+       │
+  200M │          ┌───┐ (Adverse Peak: $160.26M)
+       │          │   │      ┌─┐ (Severely Adverse Peak: $118.77M)
+  100M │      ┌───┘   └───┐  │ └──┐
+       │      │           └──┘    └──┐
+    0M └──────┴──────────────────────┴───────────────────────────────────────────────────────► Baseline: $0.00 drawn (Steady-State)
+       Jan 1   Jan 15  Feb         Mar         Apr         May
 ```
 
-##### Why Day 2 Triggers a $500.00M Draw:
-1. **Day 1 Banking Holiday (Jan 1, 2026)**: Commercial banking networks are closed. Merchant payout processing is deferred to Day 2.
-2. **Day 2 Settlement Gap Shock**: On Jan 2, accumulated merchant payouts of **$618.67M** come due. However, inbound card collections under standard settlement lag ($T+2$) are only **$31.78M**.
-3. **Statutory Client Asset Safeguarding**: To protect client funds, corporate operating cash injects **$586.89M** into the safeguarding ledger.
-4. **Covenant Breach**: Pre-financing corporate cash drops from $\$300.00\text{M}$ to **-$281.03M**, violating the $\$250.00\text{M}$ covenant floor by $\$531.03\text{M}$.
-5. **Full Capacity Drawdown**: The treasury automatically draws the maximum available revolver capacity:
-   $$\min\left(\$250.00\text{M} - (-\$281.03\text{M}), \; \$500.00\text{M}\right) = \mathbf{\$500.00M}$$
+##### 1. Steady-State Baseline Stability ($0.00 Drawn):
+* **7-Day Clearing Burn-In**: Rather than starting from an empty pipeline on Day 1, in-flight settlement receivables arrive continuously from Day 1 to match outbound merchant payouts.
+* **Daily Fee Sweeping**: Processor take-rate revenues are swept daily into corporate operational cash, sustaining cash reserves well above the **$250.00M** covenant floor (closing cash expands from $300.00M to ~$1,168M over the 150-day horizon).
+* **Zero Technical Default**: Under Baseline steady state, **$0.00 is drawn from the revolver facility** throughout the entire 150-day projection horizon, maintaining 100% undrawn liquidity capacity ($500.00M).
 
-##### Why Scenarios Diverge After Day 2:
-* **In Baseline**: Inbound card receivables clear on Day 3 onwards at standard speed. Corporate operating cash recovers above the **$300.00M** sweep threshold ($L_{\text{target}}$). The engine systematically sweeps surplus cash to pay down the facility, fully extinguishing the debt to **$0.00** by Day 118.
-* **In Adverse (+24h Lag) & Severely Adverse (+48h Freeze)**: Chronic network clearing friction permanently delays cash collections. Operating cash never recovers above the $\$300.00\text{M}$ sweep threshold. As a result, **the revolver remains locked at its $500.00M maximum ceiling throughout the 150 days**.
+##### 2. Macroeconomic Stress Sensitivity:
+* **Adverse Scenario (+24h Lag, 8.50% All-in Rate)**: An artificial +24-hour bank clearing delay expands float receivables, creating temporary working capital timing shortfalls. Corporate cash dips to buffer payouts, activating the credit facility with a **peak draw of $160.26M** and generating **$860.0K in interest drag**.
+* **Severely Adverse Scenario (+48h Freeze, 10.75% All-in Rate)**: Severe 48-hour systemic settlement friction causes platform payout obligations to temporarily lead inbound network receipts, drawing a **peak debt of $118.77M** with **$681.9K in interest drag** while defending the $250.00M covenant floor.
 
-#### 5.2 Cost of Carry & Net Operating Margin Erosion
-The structural borrowing required under stress scenarios generates significant interest carrying expense:
+#### 5.2 Cost of Carry & Net Operating Margin Drag
 
-| Scenario | Drawn Facility Duration | Effective Borrowing Rate | Cumulative Interest Expense | Operating Margin Erosion |
+| Scenario | Peak Drawn Debt | Effective Borrowing Rate | Cumulative Period Interest | Liquidity Covenant Status |
 | :--- | :---: | :---: | :---: | :---: |
-| **Baseline** | 118 Days (gradual paydown) | 6.25% (4.25% SOFR + 200 bps) | **$6.49M** | 42.1 bps |
-| **Adverse** | 150 Days (100% locked) | 8.50% (5.75% SOFR + 275 bps) | **$10.74M** *(+65%)* | 69.8 bps |
-| **Severely Adverse** | 150 Days (100% locked) | 10.50% (7.00% SOFR + 350 bps) | **$13.08M** *(+101%)* | 85.0 bps |
+| **Baseline** | **$0.00M** | 6.25% (4.25% SOFR + 200 bps) | **$0.00M** | **100% Compliant** (Zero Borrowing) |
+| **Adverse** | **$160.26M** | 8.50% (5.75% SOFR + 275 bps) | **$860.0K** | **Compliant** (Buffer Defended) |
+| **Severely Adverse** | **$118.77M** | 10.75% (7.00% SOFR + 375 bps) | **$681.9K** | **Compliant** (Buffer Defended) |
 
 #### 5.3 Working Capital Expansion & Rail Timing Shift
 Settlement latency shifts dramatically expand the working capital deficit:
