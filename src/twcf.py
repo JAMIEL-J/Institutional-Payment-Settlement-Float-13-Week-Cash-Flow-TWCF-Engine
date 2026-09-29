@@ -89,19 +89,50 @@ def weekly_variance(con, budget_daily_gpv=None, budget_mix=None,
     ensure_twcf_table(con)
     if budget_daily_gpv is None:
         budget_daily_gpv = BASELINE_DAILY_GPV
-    if budget_mix is None:
-        budget_mix = dict(RAIL_SHARE)
     if budget_take is None:
         budget_take = {r: RAIL_TAKE[r] - RAIL_COST[r] for r in RAIL_SHARE}
+    if budget_mix is None:
+        mix_totals = dict(con.execute(
+            "SELECT payment_rail, SUM(gross_amount) FROM fact_transactions"
+            " GROUP BY 1").fetchall())
+        total_mix = sum(float(v or 0.0) for v in mix_totals.values())
+        if total_mix > 0:
+            budget_mix = {r: float(mix_totals.get(r, 0.0) or 0.0) / total_mix for r in RAIL_SHARE}
+        else:
+            budget_mix = dict(RAIL_SHARE)
     budget_net_take = sum(budget_mix[r] * budget_take[r] for r in budget_mix)
     inbound_by_day = {}
     for ds, v in con.execute("SELECT CAST(inbound_settlement_date AS VARCHAR),"
                              " SUM(gross_amount) FROM fact_transactions"
                              " GROUP BY 1").fetchall():
         inbound_by_day[str(ds)] = float(v or 0)
+    wf_rows = con.execute(
+        "SELECT CAST(ledger_date AS VARCHAR), safeguarded_inbound_settlements,"
+        " safeguarded_outbound_payouts FROM fpa_cash_waterfall_daily"
+        " ORDER BY ledger_date").fetchall()
+    act_in_by_day = {str(ds): float(v or 0.0) for ds, v, _ in wf_rows}
+    act_out_by_day = {str(ds): float(v or 0.0) for ds, _, v in wf_rows}
     days = [str(r[0]) for r in con.execute(
         "SELECT DISTINCT CAST(auth_date AS VARCHAR) FROM fact_transactions"
         " ORDER BY 1").fetchall()]
+    if not days:
+        days = [str(r[0]) for r in con.execute(
+            "SELECT DISTINCT CAST(ledger_date AS VARCHAR) FROM fpa_cash_waterfall_daily"
+            " ORDER BY 1").fetchall()]
+        act_in_by_day = dict(inbound_by_day)
+    day_objs = [_dt.date.fromisoformat(ds) for ds in days]
+    lag_candidates = [0, 1, 2, 3]
+    lag_err = {}
+    for lag in lag_candidates:
+        err = 0.0
+        for d in day_objs:
+            shifted = d - _dt.timedelta(days=lag)
+            err = err + abs(
+                act_in_by_day.get(d.isoformat(), 0.0)
+                - inbound_by_day.get(shifted.isoformat(), 0.0)
+            )
+        lag_err[lag] = err
+    inferred_lag_days = min(lag_err, key=lag_err.get)
     weeks = {}
     for ds in days:
         d = _dt.date.fromisoformat(ds)
@@ -116,11 +147,13 @@ def weekly_variance(con, budget_daily_gpv=None, budget_mix=None,
             "SELECT COALESCE(SUM(gross_amount),0) FROM fact_transactions"
             " WHERE merchant_payout_date BETWEEN ? AND ?", [ds[0], ds[-1]]
         ).fetchone()[0])
-        act_in = sum(inbound_by_day.get(x.isoformat(), 0.0) for x in ds)
-        act_out = float(con.execute(
-            "SELECT COALESCE(SUM(gross_amount - reserve_retained_amount),0)"
-            " FROM fact_transactions WHERE merchant_payout_date BETWEEN ? AND ?",
-            [ds[0], ds[-1]]).fetchone()[0])
+        act_in = sum(act_in_by_day.get(x.isoformat(), 0.0) for x in ds)
+        act_out = sum(act_out_by_day.get(x.isoformat(), 0.0) for x in ds)
+        if not act_out_by_day:
+            act_out = float(con.execute(
+                "SELECT COALESCE(SUM(gross_amount - reserve_retained_amount),0)"
+                " FROM fact_transactions WHERE merchant_payout_date BETWEEN ? AND ?",
+                [ds[0], ds[-1]]).fetchone()[0])
         act_net = act_in - act_out
         bud_gpv = budget_daily_gpv * len(ds)
         bud_net = bud_gpv * budget_net_take
@@ -128,8 +161,8 @@ def weekly_variance(con, budget_daily_gpv=None, budget_mix=None,
         timing = act_in - forecast_inbound.get(wk, act_in)
         mix_rows = con.execute(
             "SELECT payment_rail, SUM(gross_amount) FROM fact_transactions"
-            " WHERE merchant_payout_date BETWEEN ? AND ? GROUP BY 1",
-            [ds[0], ds[-1]]).fetchall()
+            " WHERE CAST(inbound_settlement_date + ? AS DATE) BETWEEN ? AND ? GROUP BY 1",
+            [inferred_lag_days, ds[0], ds[-1]]).fetchall()
         mix = 0.0
         if act_gpv > 0:
             for r, g in mix_rows:
