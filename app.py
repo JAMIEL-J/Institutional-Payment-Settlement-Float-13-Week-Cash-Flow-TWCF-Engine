@@ -41,7 +41,7 @@ def engine(scenario):
 # Page Configuration & Executive Styling
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="XYZ Corp (NYSE: XYZ) | Settlement Float & TWCF Treasury Engine",
+    page_title="Block, Inc. | Settlement Float & TWCF Treasury Engine",
     page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -174,7 +174,7 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Header & Data Ingestion
 # ---------------------------------------------------------------------------
-st.title("XYZ Corp (NYSE: XYZ) — Settlement Float & 13W Cash Flow")
+st.title("Block, Inc. — Settlement Float & 13W Cash Flow")
 st.caption(f"150-Day Institutional Treasury Engine | Dual-Ledger Cash Waterfall | Macro Scenario: **{scenario}** | Benchmark: SEC Form 10-K Calibration")
 
 
